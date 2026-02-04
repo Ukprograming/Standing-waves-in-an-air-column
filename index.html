@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>気柱共鳴</title>
+    <style>
+        :root {
+            /* Gemini/Google Tone Colors */
+            --bg-color: #121212;
+            /* 深い黒 */
+            --panel-bg: #1e1e1e;
+            /* コントロールパネル */
+            --accent: #A8C7FA;
+            /* 薄いブルー */
+            --text-main: #E2E2E2;
+            --text-sub: #9AA0A6;
+
+            --pad: clamp(8px, 1.2vh, 14px);
+            --gap: clamp(8px, 1.2vh, 14px);
+            --radius: 12px;
+        }
+
+        body.compact {
+            --pad: 6px;
+            --gap: 6px;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: var(--pad);
+            height: 100dvh;
+            overflow: hidden;
+            touch-action: none;
+            display: flex;
+            flex-direction: column;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg-color);
+            color: var(--text-main);
+        }
+
+        .container {
+            width: min(1000px, 100%);
+            margin: 0 auto;
+            flex: 1 1 auto;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            gap: var(--gap);
+        }
+
+        canvas {
+            width: 100%;
+            flex: 1 1 auto;
+            min-height: 150px;
+            display: block;
+            background: #000;
+            border-radius: var(--radius);
+            border: 1px solid #333;
+        }
+
+        .controls {
+            background: var(--panel-bg);
+            padding: var(--pad);
+            border-radius: var(--radius);
+            display: grid;
+            gap: var(--gap);
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            align-items: center;
+            flex: 0 0 auto;
+            border: 1px solid #333;
+        }
+
+        /* Top Row Layout */
+        .topRow {
+            grid-column: 1/-1;
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--gap);
+            justify-content: space-between;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            flex: 1;
+        }
+
+        /* Sliders */
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        label {
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+            color: var(--text-sub);
+            font-weight: 500;
+        }
+
+        span.value {
+            color: var(--accent);
+            font-family: monospace;
+            font-weight: bold;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 24px;
+            accent-color: var(--accent);
+            cursor: pointer;
+        }
+
+        /* Buttons */
+        button {
+            flex: 1 1 80px;
+            padding: 8px 12px;
+            border: 1px solid #444;
+            border-radius: 8px;
+            background: #2C2C2C;
+            color: #ccc;
+            font-size: 13px;
+            cursor: pointer;
+            transition: background 0.1s;
+        }
+
+        button:active {
+            transform: translateY(1px);
+        }
+
+        button.active {
+            background: #2a3a50;
+            /* Dark Blue bg */
+            border-color: var(--accent);
+            color: var(--accent);
+            font-weight: bold;
+        }
+
+        .info {
+            grid-column: 1/-1;
+            font-size: 11px;
+            color: #666;
+            text-align: center;
+        }
+
+        @media (max-height: 500px) {
+            body {
+                overflow: auto;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <canvas id="cv"></canvas>
+
+        <div class="controls" id="controls">
+            <div class="topRow">
+                <div class="btn-group">
+                    <button id="btn-start" class="active">▶ 再生</button>
+                    <button id="btn-pause">▮▮ 停止</button>
+                    <button id="btn-reset">↺ リセット</button>
+                </div>
+                <div class="btn-group">
+                    <button id="btn-view-trans" class="active">横波</button>
+                    <button id="btn-view-long">縦波 (粒子)</button>
+                    <button id="btn-thermal">熱運動 OFF</button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>長さ (L): <span class="value" id="val-L">1000</span></label>
+                <input type="range" id="rng-L" min="350" max="1200" value="1000">
+            </div>
+            <div class="control-group">
+                <label>振幅 (A): <span class="value" id="val-A">100</span></label>
+                <input type="range" id="rng-A" min="1" max="100" value="100">
+            </div>
+            <div class="control-group">
+                <label>波長 (λ): <span class="value" id="val-lam">400</span></label>
+                <input type="range" id="rng-lam" min="60" max="2400" value="400">
+            </div>
+            <div class="control-group">
+                <label>速度 (v): <span class="value" id="val-v">6</span></label>
+                <input type="range" id="rng-v" min="1" max="15" step="0.5" value="6">
+            </div>
+
+            <div class="control-group">
+                <label>管の端</label>
+                <div class="btn-group" style="gap:4px;">
+                    <button id="btn-open" class="active">開管</button>
+                    <button id="btn-closed">閉管</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (() => {
+            const canvas = document.getElementById('cv');
+            const ctx = canvas.getContext('2d', { alpha: false }); // alpha falseで高速化
+
+            // 物理パラメータ
+            const MAX_REFLECTIONS = 20; // 計算負荷軽減のため少し下げる(見た目変わらない)
+
+            const state = {
+                L: 1000, A: 100, lam: 400, v: 6,
+                rightEnd: 'open',
+                view: 'trans',
+                thermal: false,
+                running: true,
+                t: 0,
+                raf: null
+            };
+
+            // ---- 視認性UP用カラー ----
+            const COLORS = {
+                bg: '#121212',
+                tubeStroke: 'rgba(220, 230, 255, 0.85)',   // 管の枠線（明るめ）
+                tubeStrokeThin: 'rgba(220, 230, 255, 0.45)',
+                speakerStroke: 'rgba(220, 230, 255, 0.65)',
+                openDash: 'rgba(220, 230, 255, 0.65)',
+                axis: 'rgba(255, 255, 255, 0.22)',         // 軸線・補助線
+                wave: 'rgba(168, 199, 250, 0.95)',         // 波形
+                particles: 'rgba(168, 199, 250, 0.95)',    // 粒子
+                wall: 'rgba(230, 230, 230, 0.45)',         // 閉管の壁
+            };
+
+
+            // ---- レスポンシブ処理 ----
+            function resize() {
+                const rect = canvas.getBoundingClientRect();
+                const dpr = window.devicePixelRatio || 1;
+
+                canvas.width = Math.floor(rect.width * dpr);
+                canvas.height = Math.floor(rect.height * dpr);
+
+                // ★scaleの累積を防ぐ（重要）
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+                if (!state.running) draw();
+            }
+            window.addEventListener('resize', resize);
+
+            // ---- UI処理（省略して高速化） ----
+            const setText = (id, v) => document.getElementById(id).textContent = v;
+            const bind = (id, k) => {
+                document.getElementById('rng-' + id).addEventListener('input', e => {
+                    state[k] = +e.target.value;
+                    setText('val-' + id, state[k]);
+                    if (!state.running) draw();
+                });
+            };
+            ['L', 'A', 'lam', 'v'].forEach(k => bind(k, k));
+
+            const toggleBtn = (id, isActive) => document.getElementById(id).classList.toggle('active', isActive);
+
+            // ボタン類
+            document.getElementById('btn-start').onclick = () => { state.running = true; toggleBtn('btn-start', 1); toggleBtn('btn-pause', 0); loop(); };
+            document.getElementById('btn-pause').onclick = () => { state.running = false; toggleBtn('btn-start', 0); toggleBtn('btn-pause', 1); cancelAnimationFrame(state.raf); };
+            document.getElementById('btn-reset').onclick = () => { state.t = 0; state.running = false; toggleBtn('btn-start', 0); toggleBtn('btn-pause', 1); draw(); };
+
+            document.getElementById('btn-view-trans').onclick = () => { state.view = 'trans'; toggleBtn('btn-view-trans', 1); toggleBtn('btn-view-long', 0); if (!state.running) draw(); };
+            document.getElementById('btn-view-long').onclick = () => { state.view = 'long'; toggleBtn('btn-view-long', 1); toggleBtn('btn-view-trans', 0); if (!state.running) draw(); };
+
+            const btnTh = document.getElementById('btn-thermal');
+            btnTh.onclick = () => {
+                state.thermal = !state.thermal;
+                btnTh.textContent = state.thermal ? '熱運動 ON' : '熱運動 OFF';
+                btnTh.classList.toggle('active', state.thermal);
+                if (!state.running) draw();
+            };
+
+            document.getElementById('btn-open').onclick = () => { state.rightEnd = 'open'; toggleBtn('btn-open', 1); toggleBtn('btn-closed', 0); if (!state.running) draw(); };
+            document.getElementById('btn-closed').onclick = () => { state.rightEnd = 'closed'; toggleBtn('btn-closed', 1); toggleBtn('btn-open', 0); if (!state.running) draw(); };
+
+            // ---- 物理計算 (波の重ね合わせ) ----
+            function getDisplacement(x, t) {
+                let sum = 0;
+                const k = 6.283 / state.lam;
+                const omega = k * state.v;
+                const L = state.L;
+
+                const A_internal = state.A * 0.1; // ★UI(1〜100) → 旧スケール(0.1〜10)
+
+                for (let n = 0; n <= MAX_REFLECTIONS; n++) {
+                    const dir = (n % 2 === 0) ? 1 : -1;
+                    const path = (dir === 1) ? (n * L + x) : (n * L + (L - x));
+
+                    if (state.v * t < path) continue;
+
+                    const phaseFlip = (state.rightEnd === 'closed') ? Math.PI : 0;
+                    const ph = omega * t - k * path + (n * phaseFlip);
+                    const fade = 1 - (n / MAX_REFLECTIONS);
+
+                    sum += A_internal * fade * Math.sin(ph); // ★ここだけ変わる
+                }
+                return sum;
+            }
+
+
+            // ---- 粒子初期化 ----
+            const molecules = [];
+            const LANE_COUNT = 7; // 粒子の列数
+            const PER_LANE = 50;  // 1列あたりの粒子数
+
+            function initMolecules() {
+                molecules.length = 0;
+                for (let l = 0; l < LANE_COUNT; l++) {
+                    for (let i = 0; i < PER_LANE; i++) {
+                        molecules.push({
+                            u: (i + 0.5) / PER_LANE, // 0..1
+                            lane: l,
+
+                            // 位置オフセット（管内座標のズレ）
+                            jX: 0, jY: 0,
+
+                            // ★速度（熱運動で管内を移動させる）
+                            vx: 0, vy: 0,
+                        });
+                    }
+                }
+            }
+
+            initMolecules();
+
+            function drawHornSpeaker(x, y, w, h, t) {
+                // x,y,w,h: スピーカー領域（canvas内）
+                // t: state.t（アニメ用）
+
+                ctx.save();
+
+                // --- 位置の基準 ---
+                const cx = x + w * 0.35;       // ドライバ中心
+                const cy = y + h * 0.50;
+                const driverR = Math.min(w, h) * 0.18;
+
+                // ホーンのスロート位置（ドライバ右側）
+                const throatX = x + w * 0.55;
+                const throatH = h * 0.18;
+
+                // ホーン開口部（右端）
+                const mouthX = x + w * 0.98;
+                const mouthH = h * 0.80;
+
+                // --- 土台（スピーカー取り付け板） ---
+                ctx.fillStyle = '#1f1f1f';
+                ctx.strokeStyle = COLORS.speakerStroke;
+
+                ctx.lineWidth = 2;
+                ctx.fillRect(x, y, w, h);
+                ctx.strokeRect(x, y, w, h);
+
+                // --- ドライバ（丸） ---
+                ctx.beginPath();
+                ctx.fillStyle = '#101010';
+                ctx.arc(cx, cy, driverR * 1.15, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.strokeStyle = 'rgba(168,199,250,0.65)';
+                ctx.lineWidth = 3;
+                ctx.arc(cx, cy, driverR * 1.10, 0, Math.PI * 2);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.fillStyle = '#2a2a2a';
+                ctx.arc(cx, cy, driverR * 0.78, 0, Math.PI * 2);
+                ctx.fill();
+
+                // センターキャップ
+                ctx.beginPath();
+                ctx.fillStyle = '#3a3a3a';
+                ctx.arc(cx, cy, driverR * 0.22, 0, Math.PI * 2);
+                ctx.fill();
+
+                // --- ホーン（台形〜曲線でラッパ形状） ---
+                // 上下の広がりを描く（軽量：2本の曲線 + 塗り）
+                const topY = y + h * 0.50 - mouthH * 0.50;
+                const botY = y + h * 0.50 + mouthH * 0.50;
+                const throatTop = cy - throatH * 0.5;
+                const throatBot = cy + throatH * 0.5;
+
+                ctx.beginPath();
+                ctx.moveTo(throatX, throatTop);
+
+                // 上側：ゆるく広がる曲線
+                ctx.quadraticCurveTo(
+                    x + w * 0.70, y + h * 0.18,
+                    mouthX, topY
+                );
+
+                // 口（開口部）の縁
+                ctx.lineTo(mouthX, botY);
+
+                // 下側：ゆるく広がる曲線（戻り）
+                ctx.quadraticCurveTo(
+                    x + w * 0.70, y + h * 0.82,
+                    throatX, throatBot
+                );
+
+                ctx.closePath();
+
+                // ホーンの中（少し明るい）
+                ctx.fillStyle = '#262b33';
+                ctx.fill();
+
+                // ホーンの縁取り
+                ctx.strokeStyle = 'rgba(168,199,250,0.45)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // --- ホーン内のリブ（筋）を数本（それっぽさUP、負荷軽） ---
+                ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+                ctx.lineWidth = 1;
+                for (let i = 0; i < 4; i++) {
+                    const u = (i + 1) / 5; // 0..1
+                    const xx = throatX + (mouthX - throatX) * u;
+
+                    const half = (throatH * 0.5) + (mouthH * 0.5 - throatH * 0.5) * u;
+                    ctx.beginPath();
+                    ctx.moveTo(xx, cy - half);
+                    ctx.lineTo(xx, cy + half);
+                    ctx.stroke();
+                }
+
+                // --- 開口部の縁（強調） ---
+                ctx.strokeStyle = 'rgba(168,199,250,0.70)';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(mouthX, topY);
+                ctx.lineTo(mouthX, botY);
+                ctx.stroke();
+
+                // --- 音波（再生中だけ、ラッパの開口から出る感じ） ---
+                // 横波/縦波どちらでも分かるように
+                if (state.running) {
+                    const phase = (t * 0.12) % 1; // 0..1
+                    ctx.strokeStyle = 'rgba(168,199,250,0.55)';
+                    ctx.lineWidth = 2;
+
+                    for (let i = 0; i < 3; i++) {
+                        const rr = 10 + i * 12 + phase * 14;
+                        ctx.beginPath();
+                        ctx.arc(mouthX + 2, cy, rr, -0.55, 0.55);
+                        ctx.stroke();
+                    }
+                }
+
+                ctx.restore();
+            }
+
+
+
+            // ---- 描画 ----
+            function draw() {
+                const W = canvas.width / (window.devicePixelRatio || 1);
+                const H = canvas.height / (window.devicePixelRatio || 1);
+
+                // 背景クリア (完全な黒)
+                ctx.fillStyle = COLORS.bg;
+                ctx.fillRect(0, 0, W, H);
+
+                // レイアウト計算（Lに応じて管の見た目の長さも変える）
+                // スライダー最大値に合わせる
+                const LMAX = 1200;
+
+                // 画面に収まる「最大の管の表示幅」（左右余白やスピーカー分を除いた分）
+                const padX = Math.max(12, W * 0.03);
+                const spW = 70;      // スピーカー幅（元コードと同じ）
+                const gap = Math.max(14, Math.min(36, W * 0.04)); // ★画面に応じて 14〜36px
+                const wallW = 6;       // 右端壁の幅（閉管）
+
+                const tubeWmax = Math.max(240, W - padX * 2 - spW - gap - wallW); // ★L=1200のときの最大表示幅
+                const tubeW = tubeWmax * (state.L / LMAX);                     // ★Lに比例して伸縮
+
+                const tubeH = 200;  // ★常に同じ太さ（好みで180〜240程度に）
+
+
+                // 全体（スピーカー + 管 + 壁）を中央寄せ
+                const totalW = spW + gap + tubeW + wallW;
+                const startX = (W - totalW) / 2;
+
+                const spX = startX;
+                const left = startX + spW + gap;
+                const top = (H - tubeH) / 2;
+
+
+                // 管の描画：開口端は線を描かない（左は常に開口、右はopenなら開口）
+                ctx.strokeStyle = COLORS.tubeStroke;
+                ctx.lineWidth = 2.5;
+
+                // 上下の壁だけ描く
+                ctx.beginPath();
+                ctx.moveTo(left, top);
+                ctx.lineTo(left + tubeW, top);
+                ctx.moveTo(left, top + tubeH);
+                ctx.lineTo(left + tubeW, top + tubeH);
+                ctx.stroke();
+
+
+                // 右端 (開/閉)
+                // open のとき：線を描かない（開口を強調）
+                // closed のとき：壁を描く
+                if (state.rightEnd === 'closed') {
+                    ctx.fillStyle = COLORS.wall;
+                    ctx.fillRect(left + tubeW - wallW, top, wallW, tubeH);
+                }
+
+
+
+
+                // スピーカー (左)  ※必ずキャンバス内（スピーカーっぽく描く）
+                drawHornSpeaker(spX, top + 10, spW, tubeH - 20, state.t);
+
+
+                // 右端 (開/閉)  ※必ずキャンバス内
+                if (state.rightEnd === 'closed') {
+                    ctx.fillStyle = COLORS.wall;
+                    ctx.fillRect(left + tubeW - wallW, top, wallW, tubeH);
+                } else {
+                    ctx.strokeStyle = COLORS.openDash;
+                    ctx.setLineDash([4, 4]);
+                    ctx.beginPath();
+                    ctx.moveTo(left + tubeW, top);
+                    ctx.lineTo(left + tubeW, top + tubeH);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+
+
+                // --- 縦波 (粒子) ---
+                if (state.view === 'long') {
+                    const scaleX = tubeW / state.L;
+
+                    // ★管の太さ固定に合わせて、粒子が「管の内側全体」に広がるようにする
+                    const r = 2.5;                // 粒子半径（下でarcに使っている値と合わせる）
+                    const innerPadY = Math.max(6, r + 2);   // 上下の最小余白（粒子が枠に被らない分）
+                    const innerTop = top + innerPadY;
+                    const innerH = tubeH - innerPadY * 2;
+
+                    const laneH = innerH / LANE_COUNT;
+                    const startY = innerTop + laneH / 2;
+
+
+                    ctx.fillStyle = COLORS.particles;
+
+
+                    // パスをまとめて描画 (高速化)
+                    ctx.beginPath();
+
+                    for (let m of molecules) {
+                        const xBase = m.u * state.L;
+                        const disp = getDisplacement(xBase, state.t);
+
+                        // ★熱運動：速度 + ランダム加速（ブラウン運動っぽく）で管内を移動
+                        if (state.thermal) {
+                            // ランダム加速度（強さはここで調整）
+                            const ax = (Math.random() - 0.5) * 0.9;
+                            const ay = (Math.random() - 0.5) * 0.9;
+
+                            // 速度更新
+                            m.vx += ax;
+                            m.vy += ay;
+
+                            // 摩擦（暴走防止）
+                            m.vx *= 0.985;
+                            m.vy *= 0.985;
+
+                            // 位置更新（jX/jY を実際に移動させる）
+                            m.jX += m.vx;
+                            m.jY += m.vy;
+
+                        } else {
+                            // OFF のとき：速度を殺して、ゆっくり元位置に戻す
+                            m.vx *= 0.85;
+                            m.vy *= 0.85;
+                            m.jX *= 0.92;
+                            m.jY *= 0.92;
+                        }
+
+
+                        let px = left + (xBase + disp) * scaleX + m.jX;
+                        let py = startY + m.lane * laneH + m.jY;
+
+                        // ★反射（バウンド）：はみ出したら速度を反転させて戻す
+                        const minX = left + r;
+                        const maxX = left + tubeW - r;
+                        const minY = innerTop + r;
+                        const maxY = innerTop + innerH - r;
+
+
+                        // X方向
+                        if (px < minX) {
+                            px = minX + (minX - px);   // はみ出し分だけ戻す
+                            m.vx *= -0.85;             // 反射（少しエネルギー損失）
+                            m.jX = px - (left + (xBase + disp) * scaleX); // jXを整合
+                        } else if (px > maxX) {
+                            px = maxX - (px - maxX);
+                            m.vx *= -0.85;
+                            m.jX = px - (left + (xBase + disp) * scaleX);
+                        }
+
+                        // Y方向
+                        if (py < minY) {
+                            py = minY + (minY - py);
+                            m.vy *= -0.85;
+                            m.jY = py - (startY + m.lane * laneH);
+                        } else if (py > maxY) {
+                            py = maxY - (py - maxY);
+                            m.vy *= -0.85;
+                            m.jY = py - (startY + m.lane * laneH);
+                        }
+                        // ★ここが抜けている：粒子（円）をパスに追加
+                        ctx.moveTo(px + r, py);
+                        ctx.arc(px, py, r, 0, Math.PI * 2);
+
+                    }
+                    ctx.fill();
+
+                }
+                // --- 横波 (グラフ) ---
+                else {
+                    const scaleX = tubeW / state.L;
+                    const cy = top + tubeH / 2;
+
+                    ctx.strokeStyle = COLORS.wave;
+                    ctx.lineWidth = 2.6;
+
+                    ctx.beginPath();
+
+                    // ステップを大きくして負荷軽減
+                    const step = Math.max(2, state.L / 200);
+                    for (let x = 0; x <= state.L; x += step) {
+                        const y = getDisplacement(x, state.t);
+                        const px = left + x * scaleX;
+                        const py = cy - y;
+                        if (x === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+                    }
+                    ctx.stroke();
+
+                    // 軸線
+                    ctx.strokeStyle = COLORS.axis;
+                    ctx.lineWidth = 1.6;
+                    ctx.beginPath();
+                    ctx.moveTo(left, cy);
+                    ctx.lineTo(left + tubeW, cy);
+                    ctx.stroke();
+                }
+            }
+
+            function loop() {
+                draw();
+                if (state.running) {
+                    state.t += 0.8;
+                    state.raf = requestAnimationFrame(loop);
+                }
+            }
+
+            // 初期化
+            resize();
+            loop();
+            setTimeout(resize, 100); // レイアウト安定化用
+        })();
+    </script>
+</body>
+
+</html>
