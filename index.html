@@ -180,7 +180,7 @@
 
             <div class="control-group">
                 <label>長さ (L): <span class="value" id="val-L">1000</span></label>
-                <input type="range" id="rng-L" min="350" max="1200" value="1000">
+                <input type="range" id="rng-L" min="300" max="1200" value="1000">
             </div>
             <div class="control-group">
                 <label>振幅 (A): <span class="value" id="val-A">100</span></label>
@@ -287,26 +287,53 @@
             // ---- 物理計算 (波の重ね合わせ) ----
             function getDisplacement(x, t) {
                 let sum = 0;
+
                 const k = 6.283 / state.lam;
                 const omega = k * state.v;
                 const L = state.L;
 
-                const A_internal = state.A * 0.1; // ★UI(1〜100) → 旧スケール(0.1〜10)
+                // UI(1〜100) → 旧スケール(0.1〜10)
+                const A_internal = state.A * 0.1;
 
+                // 端条件（変位の反射位相）
+                // 左端（スピーカー側）は「開口」とみなす：位相反転なし
+                const phaseLeft = 0;
+
+                // 右端：開口→位相反転なし、閉口→位相反転あり(π)
+                const phaseRight = (state.rightEnd === 'closed') ? Math.PI : 0;
+
+                // n は「半往復」ごとの成分（0:右向き入射、1:右端反射で左向き、2:左端反射で右向き…）
                 for (let n = 0; n <= MAX_REFLECTIONS; n++) {
-                    const dir = (n % 2 === 0) ? 1 : -1;
-                    const path = (dir === 1) ? (n * L + x) : (n * L + (L - x));
+                    const dirRight = (n % 2 === 0); // even: 右向き, odd: 左向き
 
+                    // その成分が進んだ総距離（半往復×n + 現在位置まで）
+                    const path = dirRight ? (n * L + x) : (n * L + (L - x));
+
+                    // まだ届いていない
                     if (state.v * t < path) continue;
 
-                    const phaseFlip = (state.rightEnd === 'closed') ? Math.PI : 0;
-                    const ph = omega * t - k * path + (n * phaseFlip);
+                    // 反射回数（nの進み方から数えられる）
+                    // n=0: 右反射0 左反射0
+                    // n=1: 右反射1 左反射0
+                    // n=2: 右反射1 左反射1
+                    // n=3: 右反射2 左反射1 ...
+                    const rightBounces = Math.floor((n + 1) / 2);
+                    const leftBounces = Math.floor(n / 2);
+
+                    // 位相シフト（左は開口なので0、右はopen/closedで0 or π）
+                    const phaseShift = rightBounces * phaseRight + leftBounces * phaseLeft;
+
+                    // 表示用フェード（回数が多いほど薄く）
                     const fade = 1 - (n / MAX_REFLECTIONS);
 
-                    sum += A_internal * fade * Math.sin(ph); // ★ここだけ変わる
+                    const ph = omega * t - k * path + phaseShift;
+
+                    sum += A_internal * fade * Math.sin(ph);
                 }
+
                 return sum;
             }
+
 
 
             // ---- 粒子初期化 ----
