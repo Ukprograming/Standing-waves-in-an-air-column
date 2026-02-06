@@ -192,14 +192,14 @@
             </div>
             <div class="control-group">
                 <label>速度 (v): <span class="value" id="val-v">6</span></label>
-                <input type="range" id="rng-v" min="1" max="15" step="0.5" value="6">
+                <input type="range" id="rng-v" min="1" max="30" step="0.5" value="6">
             </div>
 
             <div class="control-group">
                 <label>管の端</label>
                 <div class="btn-group" style="gap:4px;">
-                    <button id="btn-open" class="active">開管</button>
-                    <button id="btn-closed">閉管</button>
+                    <button id="btn-closed" class="active">閉管</button>
+                    <button id="btn-open">開管</button>
                 </div>
             </div>
         </div>
@@ -215,7 +215,7 @@
 
             const state = {
                 L: 1000, A: 100, lam: 400, v: 6,
-                rightEnd: 'open',
+                rightEnd: 'closed',
                 view: 'trans',
                 thermal: false,
                 running: true,
@@ -571,17 +571,15 @@
                     const scaleX = tubeW / state.L;
 
                     // ★管の太さ固定に合わせて、粒子が「管の内側全体」に広がるようにする
-                    const r = 2.5;                // 粒子半径（下でarcに使っている値と合わせる）
-                    const innerPadY = Math.max(6, r + 2);   // 上下の最小余白（粒子が枠に被らない分）
+                    const r = 2.5;
+                    const innerPadY = Math.max(6, r + 2);
                     const innerTop = top + innerPadY;
                     const innerH = tubeH - innerPadY * 2;
 
                     const laneH = innerH / LANE_COUNT;
                     const startY = innerTop + laneH / 2;
 
-
                     ctx.fillStyle = COLORS.particles;
-
 
                     // パスをまとめて描画 (高速化)
                     ctx.beginPath();
@@ -592,46 +590,55 @@
 
                         // ★熱運動：速度 + ランダム加速（ブラウン運動っぽく）で管内を移動
                         if (state.thermal) {
-                            // ランダム加速度（強さはここで調整）
                             const ax = (Math.random() - 0.5) * 0.9;
                             const ay = (Math.random() - 0.5) * 0.9;
 
-                            // 速度更新
                             m.vx += ax;
                             m.vy += ay;
 
-                            // 摩擦（暴走防止）
                             m.vx *= 0.985;
                             m.vy *= 0.985;
 
-                            // 位置更新（jX/jY を実際に移動させる）
                             m.jX += m.vx;
                             m.jY += m.vy;
-
                         } else {
-                            // OFF のとき：速度を殺して、ゆっくり元位置に戻す
                             m.vx *= 0.85;
                             m.vy *= 0.85;
                             m.jX *= 0.92;
                             m.jY *= 0.92;
                         }
 
-
                         let px = left + (xBase + disp) * scaleX + m.jX;
                         let py = startY + m.lane * laneH + m.jY;
 
                         // ★反射（バウンド）：はみ出したら速度を反転させて戻す
-                        const minX = left + r;
-                        const maxX = left + tubeW - r;
+                        // 開口端は管の外側に「少しだけ」粒子が出られるようにする
+                        const leftOpen = true; // 左端（スピーカー側）は常に開口扱い
+                        const rightOpen = (state.rightEnd === 'open');
+
+                        // 開口端の外側に用意する余白（基本分）
+                        const openExtraBase = Math.min(60, Math.max(18, tubeW * 0.08));
+
+                        // ★左側は「スピーカー＋ギャップ」分も含めて外側へ許容する
+                        //    → 粒子がスピーカー位置で反射せず“すり抜ける”
+                        const openExtraLeft = openExtraBase + gap + spW;
+
+                        // 右側は従来どおり（必要なら右側も増やせます）
+                        const openExtraRight = openExtraBase;
+
+                        // X方向の許容範囲：開口なら外側へ、閉口なら管内で止める
+                        const minX = (leftOpen ? (left - openExtraLeft) : left) + r;
+                        const maxX = (rightOpen ? (left + tubeW + openExtraRight) : (left + tubeW)) - r;
+
+
                         const minY = innerTop + r;
                         const maxY = innerTop + innerH - r;
 
-
                         // X方向
                         if (px < minX) {
-                            px = minX + (minX - px);   // はみ出し分だけ戻す
-                            m.vx *= -0.85;             // 反射（少しエネルギー損失）
-                            m.jX = px - (left + (xBase + disp) * scaleX); // jXを整合
+                            px = minX + (minX - px);
+                            m.vx *= -0.85;
+                            m.jX = px - (left + (xBase + disp) * scaleX);
                         } else if (px > maxX) {
                             px = maxX - (px - maxX);
                             m.vx *= -0.85;
@@ -648,13 +655,13 @@
                             m.vy *= -0.85;
                             m.jY = py - (startY + m.lane * laneH);
                         }
-                        // ★ここが抜けている：粒子（円）をパスに追加
+
                         ctx.moveTo(px + r, py);
                         ctx.arc(px, py, r, 0, Math.PI * 2);
 
                     }
-                    ctx.fill();
 
+                    ctx.fill();
                 }
                 // --- 横波 (グラフ) ---
                 else {
@@ -666,7 +673,6 @@
 
                     ctx.beginPath();
 
-                    // ステップを大きくして負荷軽減
                     const step = Math.max(2, state.L / 200);
                     for (let x = 0; x <= state.L; x += step) {
                         const y = getDisplacement(x, state.t);
